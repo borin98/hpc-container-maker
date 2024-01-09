@@ -21,13 +21,11 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 from __future__ import print_function
 
-from packaging.version import Version
-import logging
 import posixpath
 
 import hpccm.config
+import hpccm.templates.curl
 import hpccm.templates.rm
-import hpccm.templates.wget
 
 from hpccm.building_blocks.base import bb_base
 from hpccm.building_blocks.packages import packages
@@ -38,7 +36,7 @@ from hpccm.primitives.shell import shell
 
 
 # TODO : Change the docs later
-class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
+class mamba(bb_base, hpccm.templates.rm, hpccm.templates.curl):
     """The `conda` building block installs Anaconda.
 
     You must agree to the [Anaconda End User License Agreement](https://docs.anaconda.com/anaconda/eula/) to use this building block.
@@ -96,19 +94,18 @@ class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
 
         self.__arch_pkg = ''  # Filled in by __cpu_arch()
         self.__baseurl = kwargs.get('baseurl',
-                                    'https://micro.mamba.pm/api/micromamba/')
+                                    'https://micro.mamba.pm/api/micromamba')
         self.__channels = kwargs.get('channels', [])
         self.__environment = kwargs.get('environment', None)
 
-        self.__ospackages = kwargs.get('ospackages',
-                                       ['ca-certificates', 'curl'])
+        self.__ospackages = kwargs.get('ospackages', ['curl'])
         self.__packages = kwargs.get('packages', [])
         self.__prefix = kwargs.get('prefix', '/home/mamba_user/mamba')
         self.__python2 = kwargs.get('python2', False)
         self.__python_version = '2' if self.__python2 else '3'
         self.__python_subversion = kwargs.get(
             'python_subversion', 'py27' if self.__python2 else 'py310')
-        self.__version = kwargs.get('version', '4.8.3' if self.__python2 else '23.1.0-1')
+        self.__version = kwargs.get('version', 'latest')
 
         self.__commands = []  # Filled in by __setup()
         self.__wd = kwargs.get('wd', hpccm.config.g_wd)  # working directory
@@ -139,9 +136,11 @@ class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
         # Linux Power
         if hpccm.config.g_cpu_arch == cpu_arch.PPC64LE:
             self.__arch_pkg = 'ppc64le'
+
         # Linux intel/AMD x86_64
         elif hpccm.config.g_cpu_arch == cpu_arch.X86_64:
             self.__arch_pkg = 'linux-64'
+
         # Linux ARM64
         elif hpccm.config.g_cpu_arch == cpu_arch.AARCH64:
             self.__arch_pkg = 'linux-aarch64'
@@ -157,28 +156,22 @@ class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
         else:  # pragma: no cover
             raise RuntimeError('Unknown CPU architecture')
 
+    # TODO : Add the possible versions for the package
     def __setup(self):
         """Construct the series of shell commands, i.e., fill in
            self.__commands"""
 
-        if Version(self.__version) >= Version('4.8'):
-            miniconda = 'Miniconda{0}-{1}_{2}-Linux-{3}.sh'.format(
-                self.__python_version, self.__python_subversion,
-                self.__version, self.__arch_pkg)
-        else:
-            miniconda = 'Miniconda{0}-{1}-Linux-{2}.sh'.format(
-                self.__python_version, self.__version, self.__arch_pkg)
-        url = '{0}/{1}'.format(self.__baseurl, miniconda)
+        micromamba = '{mamba_arch}/{mamba_version}'.format(mamba_arch=self.__arch_pkg, mamba_version=self.__version)
+        url = '{0}/{1}'.format(self.__baseurl, micromamba)
 
         # Download source from web
+        bla = self.download_step(url=url, directory=self.__wd)
         self.__commands.append(self.download_step(url=url, directory=self.__wd))
 
         # Install
         install_args = ['-p {}'.format(self.__prefix)]
-        if self.__eula:
-            install_args.append('-b')
         self.__commands.append('bash {0} {1}'.format(
-            posixpath.join(self.__wd, miniconda),
+            posixpath.join(self.__wd, micromamba),
             ' '.join(sorted(install_args))))
 
         # Initialize conda
@@ -219,7 +212,7 @@ class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
 
         # Cleanup miniconda download file
         self.__commands.append(self.cleanup_step(
-            items=[posixpath.join(self.__wd, miniconda)]))
+            items=[posixpath.join(self.__wd, micromamba)]))
 
     def runtime(self, _from='0'):
         """Generate the set of instructions to install the runtime specific
@@ -242,3 +235,8 @@ class mamba(bb_base, hpccm.templates.rm, hpccm.templates.wget):
                 posixpath.join(self.__prefix, 'etc', 'profile.d',
                                'conda.sh'))])
         return str(self.rt)
+
+
+# TODO : Remove this block later, this's only a test
+if __name__ == '__main__':
+    Mamba = mamba()

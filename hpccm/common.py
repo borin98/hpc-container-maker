@@ -18,17 +18,21 @@
 
 from enum import Enum
 
+
 class container_type(Enum):
     """Supported container types"""
     DOCKER = 1
     SINGULARITY = 2
     BASH = 3
 
+
 class cpu_arch(Enum):
     """Supported CPU architectures"""
     X86_64 = 1
     AARCH64 = 2
     PPC64LE = 3
+    MACOSX86_64 = 4
+    MACOSAARCH64 = 5
 
 class linux_distro(Enum):
     """Supported Linux distribution types"""

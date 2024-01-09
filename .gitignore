@@ -6,3 +6,4 @@ Dockerfile*
 Singularity*
 build/
 dist/
+.idea/
